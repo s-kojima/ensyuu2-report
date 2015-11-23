@@ -1,5 +1,5 @@
 #プログラムの説明
-テーブル構成は![テーブル構成](https://github.com/s-kojima/ensyuu2-report/blob/master/table.png)に示すテーブル構成とした．
+テーブル構成は以下に示すテーブル構成とした．![テーブル構成](https://github.com/s-kojima/ensyuu2-report/blob/master/table.png)
 実装すべき動作を考えるため，host1からhost2にpingを送る場合を考える．
 host1からhost2にpingを送るとまずhost1からルータにパケットを送る．
 そのとき，host1はルータにパケットを送る為にまずARPリクエストを送信する．
