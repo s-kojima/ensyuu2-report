@@ -53,9 +53,6 @@ IPアドレス，なども同時に設定する必要がある．送信先のポート番号は
 これらのアクションと，パケットの送信を行うEGRESSテーブルへの移動を
 次のようにセットする．
 ```
-    interface_hash = Configuration::INTERFACES
-    value = 0xffff
-    interface_hash.each do |each|
     ip_address = IPv4Address.new(each.fetch(:ip_address))
     actions = [
            NiciraRegMove.new(from: :source_mac_address,
