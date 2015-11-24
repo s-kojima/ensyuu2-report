@@ -9,8 +9,8 @@
 5. ルータがhost2にARPリクエストを送る
 6. host2がルータからのARPリクエストに対してARPリプライを送る
 7. ルータがhost2からのARPレスポンスを元に、コントローラに貯めていたパケットをhost2に送る
-
-以上をふまえて，まずはじめにswitch_readyで追加しておくべき
+
+以上をふまえて，まずはじめにswitch_readyで追加しておくべき
 フローエントリを述べる．
 
 ##Protocol Classifierテーブル
@@ -41,7 +41,7 @@ ARP RESPONDERとRouting Tableのどちらのテーブルに移動するかを
     )
 ```
 
-##ARP RESPONDERテーブル
+##ARP RESPONDERテーブル
 
 ARP RESPONDERテーブルではARPパケットに関する処理を行う．
 ARPリクエストが発生した場合，OpenFlow1.0版ルータではpacket inが発生して
@@ -122,7 +122,7 @@ Routingテーブルではipv4パケットの送信先アドレスを
               ipv4_destination_address: ip_address_mask,
               ipv4_destination_address_mask: default_mask2),
        instructions: [Apply.new(actions),GotoTable.new(INTERFACE_LOOKUP_TABLE_ID)]
-     )   
+     ) 
 ```
 
 ##INTERFACE LOOKUPテーブル
