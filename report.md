@@ -1,20 +1,24 @@
-#�ץ�����������
-�ơ��֥빽���ϰʲ��˼����ơ��֥빽���Ȥ�����![�ơ��֥빽��](https://github.com/s-kojima/ensyuu2-report/blob/master/table.png)
-�������٤�ư���ͤ��뤿�ᡤhost1����host2��ping���������ͤ��롥
-host1����host2��ping������Ȥޤ�host1����롼���˥ѥ��åȤ����롥
-���ΤȤ���host1�ϥ롼���˥ѥ��åȤ�����٤ˤޤ�ARP�ꥯ�����Ȥ��������롥
-³���ƥ롼���Ϥ�����Ф���������Ԥ���host1�Ϥ��ξ���򸵤�
-�ѥ��åȤ��������롥�롼����host1���餭���ѥ��åȤ�host2���Ϥ���Ȥ�
-host2�ΰ���MAC���ɥ쥹��ʬ����ʤ��Τǡ�ARP̤���ʥѥ��åȤȤ���
-����ȥ�����ˤ���Ƥ��������θ�ARP�ꥯ�����Ȥ�host2���Ф�����������
-ARP��ץ饤���֤äƤ���ARP����褵�줿�塤����ȥ�����ˤ���Ƥ�����
-�ѥ��åȤ���������Ф褤���ʾ��դޤ��ơ��ޤ��Ϥ�����ɲä��Ƥ����٤�
-�ե�������ȥ��Ҥ٤롥
+#プログラムの説明
+テーブル構成は![テーブル構成](https://github.com/s-kojima/ensyuu2-report/blob/master/table.png)に示すテーブル構成とした．
+実装すべき動作を考えるため，host1からhost2にpingを送る場合を考えると以下のようになる．
 
-Protocol Classifier�ơ��֥뤬�ѥ��åȤμ���(ARP��IPv4��)�ˤ�ä�
-ARP RESPONDER��Routing Table�Τɤ���Υơ��֥�˰�ư���뤫��
-Ƚ�̤��롥
-���Τ��ᡤClassifier�ơ��֥�˼��Τ褦�ˤ��ơ��ե�������ȥ��Ϥ�����ɲä��롥
+1. host1がルータにARPリクエストを送る
+2. ルータがhost1からのARPリクエストに対してARPリプライを送る
+3. host1がルータからのARPリプライを元にルータにパケットを送る
+4. ルータはhost2の宛先MACアドレスを保持していないため、host1からhost2へのパケットを、ARP未解決パケットとしてコントローラに貯めておく
+5. ルータがhost2にARPリクエストを送る
+6. host2がルータからのARPリクエストに対してARPリプライを送る
+7. ルータがhost2からのARPレスポンスを元に、コントローラに貯めていたパケットをhost2に送る
+
+以上をふまえて，まずはじめにswitch_readyで追加しておくべき
+フローエントリを述べる．
+
+##Protocol Classifierテーブル
+
+Protocol Classifierテーブルがパケットの種類(ARPかIPv4か)によって
+ARP RESPONDERとRouting Tableのどちらのテーブルに移動するかを
+判別する．
+そのため，Classifierテーブルに次のようにして，フローエントリをはじめに追加する．
 ```
     send_flow_mod_add(
       dpid,
@@ -36,23 +40,29 @@ ARP RESPONDER��Routing Table�Τɤ���Υơ��֥�˰�ư���뤫��
       instructions: GotoTable.new(ROUTING_TABLE_ID)
     )
 ```
-ARP RESPONDER�ơ��֥�Ǥ�ARP�ѥ��åȤ˴ؤ��������Ԥ���
-ARP�ꥯ�����Ȥ�ȯ��������硤OpenFlow1.0�ǥ롼���Ǥ�packet in��ȯ������
-������ԤäƤ��������롼���ϼ��ȤΥݡ��ȤȤ�����б�����MAC���ɥ쥹���ΤäƤ��뤿��packet in�򵯤����ʤ��Ƥ⡤arp request���֤����Ȥ��Ǥ��롥
-�롼�����Ȥξ���ϼ��Τ褦�ˤ�����������Ǥ��롥
+
+##ARP RESPONDERテーブル
+
+ARP RESPONDERテーブルではARPパケットに関する処理を行う．
+ARPリクエストが発生した場合，OpenFlow1.0版ルータではpacket inが発生して
+処理を行っていたが，ルータは自身のポートとそれに対応するMACアドレスを知っているためpacket inを起こさなくても，arp requestを返すことができる．
+ルータ自身の情報は次のようにして得る事ができる．
 ```
     interface_hash = Configuration::INTERFACES
 ```
-Configuration::INTERFACES�ϥϥå��幽¤�ˤʤäƤ��ꡤ�롼�����
-�ݡ��ȤȤ�����б�����MAC���ɥ쥹�ʤɤ����줾�����äƤ��롥
-ARP�ꥯ�����Ȥ��褿�Ȥ������Υꥯ�����Ȥ�ARP��ץ饤���Ѥ���
-ARP�ꥯ�����Ȥ�������MAC���ɥ쥹�ϼ���������MAC���ɥ쥹�ˤʤ롥
-�ޤ���ARP��ץ饤��������MAC���ɥ쥹(�롼���Υݡ��Ȥ��б�����MAC���ɥ쥹)��
-IP���ɥ쥹���ʤɤ�Ʊ�������ꤹ��ɬ�פ����롥������Υݡ����ֹ��
-Ʊ���ݡ��Ȥ˽Ф��Τǡ�reg1�����򤵤��Ƥ�����
-�����Υ��������ȡ��ѥ��åȤ�������Ԥ�EGRESS�ơ��֥�ؤΰ�ư��
-���Τ褦�˥��åȤ��롥
+Configuration::INTERFACESはハッシュ構造になっており，ルータ内の
+ポートとそれに対応するMACアドレスなどがそれぞれ入っている．
+ARPリクエストが来たとき，そのリクエストをARPリプライに変え，
+ARPリクエストの送信元MACアドレスは次の送信先MACアドレスになる．
+また，ARPリプライの送信元MACアドレス(ルータのポートに対応するMACアドレス)，
+IPアドレス，なども同時に設定する必要がある．送信先のポート番号は
+同じポートに出すので，reg1に退避させておく．
+これらのアクションと，パケットの送信を行うEGRESSテーブルへの移動を
+次のようにセットする．
 ```
+    interface_hash = Configuration::INTERFACES
+    value = 0xffff
+    interface_hash.each do |each|
     ip_address = IPv4Address.new(each.fetch(:ip_address))
     actions = [
            NiciraRegMove.new(from: :source_mac_address,
@@ -76,13 +86,12 @@ IP���ɥ쥹���ʤɤ�Ʊ�������ꤹ��ɬ�פ����롥������Υݡ����ֹ��
               ether_type: ETHER_TYPE_ARP,
               arp_operation: Arp::Request::OPERATION,
               arp_target_protocol_address: ip_address,
-              dst_protocol_address:ip_address,
               in_port: each.fetch(:port)),
        instructions: [Apply.new(actions),GotoTable.new(EGRESS_TABLE_ID)])
 ```
 
-�롼�������ä�ARP�ꥯ�����Ȥ��Ф���ARP��ץ饤���褿�Ȥ���
-����ȥ�������䤤��碌�뤿�ἡ�Υե�������ȥ���ɲä��Ƥ�����
+ルータが送ったARPリクエストに対するARPリプライが来たときは
+コントローラに問い合わせるため次のフローエントリを追加しておく．
 ```
     send_flow_mod_add(
        dpid,
@@ -93,13 +102,14 @@ IP���ɥ쥹���ʤɤ�Ʊ�������ꤹ��ɬ�פ����롥������Υݡ����ֹ��
               ether_type: ETHER_TYPE_ARP,
               arp_operation: Arp::Reply::OPERATION,
               arp_target_protocol_address: ip_address,
-              dst_protocol_address:ip_address,
               in_port: each.fetch(:port)),
        instructions: Apply.new(SendOutPort.new(:controller))
      )
 ```
-Routing�ơ��֥�Ǥ�ipv4�ѥ��åȤ������襢�ɥ쥹��
-�ݻ����뤿�ᡤreg0�������襢�ɥ쥹�����򤵤��롥
+
+##Routingテーブル
+Routingテーブルではipv4パケットの送信先アドレスを
+保持するため，reg0に送信先アドレスを退避させる．
 ```
     actions = [NiciraRegMove.new(from: :ipv4_destination_address,to: :reg0)]
     send_flow_mod_add(
@@ -110,16 +120,16 @@ Routing�ơ��֥�Ǥ�ipv4�ѥ��åȤ������襢�ɥ쥹��
        match: Match.new(
               ether_type: ETHER_TYPE_IPv4,
               ipv4_destination_address: ip_address_mask,
-              dst_protocol_address:ip_address,
               ipv4_destination_address_mask: default_mask2),
        instructions: [Apply.new(actions),GotoTable.new(INTERFACE_LOOKUP_TABLE_ID)]
      )   
 ```
 
-�ޤ�������INTERFACE LOOKUP�ơ��֥�Ǥ�
-�������뤿��Υݡ����ֹ��reg1�����򤷤Ƥ�������������MAC���ɥ쥹��
-�롼���Τ�Τ˽񤭴����롥�����Ƽ���ARP LOOKUP�ơ��֥�˰�ư���뤿�ᡥ
-���Τ褦�˥ե�������ȥ���ɲä��롥
+##INTERFACE LOOKUPテーブル
+次のINTERFACE LOOKUPテーブルでは
+送信するためのポート番号をreg1に退避しておき，送信元のMACアドレスを
+ルータのものに書き換える．そして次のARP LOOKUPテーブルに移動するため．
+次のようにフローエントリを追加する．
 ```
     actions = [NiciraRegLoad.new(each.fetch(:port),:reg1),
                SetSourceMacAddress.new(each.fetch(:mac_address))]
@@ -135,10 +145,10 @@ Routing�ơ��֥�Ǥ�ipv4�ѥ��åȤ������襢�ɥ쥹��
      ) 
 
 ```
-
-ARP LOOKUP�ơ��֥�Ǥϡ�����ȥ�����˥ѥ��åȤ�ɤΤ褦�˰�����
-�䤤��碌�뤿��packet in�����������뤿�ἡ�Τ褦�ˤ���
-�ե�������ȥ���ɲä��롥
+##ARP LOOKUPテーブル
+ARP LOOKUPテーブルでは，コントローラにパケットをどのように扱うか
+問い合わせるためpacket inを生じさせるため次のようにして
+フローエントリを追加する．
 ```
     send_flow_mod_add(
       dpid,
@@ -150,9 +160,10 @@ ARP LOOKUP�ơ��֥�Ǥϡ�����ȥ�����˥ѥ��åȤ�ɤΤ褦�˰�����
     )
 ```
 
-EGRESS�ơ��֥�ϡ��ǽ�Ū�˥ѥ��åȤ���������ơ��֥�ˤʤäƤ��롥
-�������뤿��Υݡ��Ȥ�reg1�����򤵤�Ƥ���ΤǤ��ΰ��谸��
-�������뤿�ᡤ���Τ褦�ˤ��ƥե�������ȥ���ɲä��롥
+##EGRESSテーブル
+EGRESSテーブルは，最終的にパケットを送信するテーブルになっている．
+送信するためのポートはreg1に退避されているのでその宛先宛に
+送信するため，次のようにしてフローエントリを追加する．
 ```
     send_flow_mod_add(
       dpid,
@@ -164,20 +175,20 @@ EGRESS�ơ��֥�ϡ��ǽ�Ū�˥ѥ��åȤ���������ơ��֥�ˤʤäƤ��롥
     )
 ```
 
-�ʾ夬switch ready���ɲä��٤��ե�������ȥ�Ǥ��롥
-�⤦1�ĺǽ���ɲä��٤��ե�������ȥ꤬���뤬�������
-���μ¹Ի����ɲä����ե�������ȥ����ǽҤ٤롥
+以上がswitch readyで追加すべきフローエントリである．
+もう1つ最初に追加すべきフローエントリがあるが，それは
+次の実行時に追加されるフローエントリの中で述べる．
 
-�¹Ի����ɲä����ե�������ȥ�ˤĤ��ƽҤ٤롥
-packet in��ARP��ץ饤��IPv4�ѥ��åȤ��Ф��������롥
-�롼�������ä�ARP�ꥯ�����Ȥ��Ф���ARP��ץ饤���֤äƤ���
-�Ȥ�������MAC���ɥ쥹�����Ǥ����Τǡ�����ȥ������ί�ޤäƤ���
-�ѥ��åȤ��������롥�ޤ�Ʊ���ˡ����夽�ΰ���IP���ɥ쥹(�ǽ�˽Ҥ٤���Ǥ���host2��IP���ɥ쥹)���Ф���ѥ��åȤϥ���ȥ�������䤤��碌�뤳�Ȥʤ�(packet in�򵯤�����)��
-�������Ƥۤ����ΤǤ��Τ���Υե�������ȥ���ɲä��롥
-�Ĥޤ�ARP��ץ饤��������MAC���ɥ쥹�ϥѥ��åȤ�������MAC���ɥ쥹�Ȥʤꡤ
-������ݡ��Ȥ�ARP��ץ饤�ѥ��åȤ������ݡ��Ȥ򤽤Τޤ��Ѥ�����ɤ���
-�����ƥѥ��åȤ��������뤿���EGRESS�ơ��֥�˰�ư���롥
-��äƼ��Τ褦�ˤ��ƥե�������ȥ��ARP LOOKUP�ơ��֥���ɲä��롥
+実行時に追加されるフローエントリについて述べる．
+packet inはARPリプライとIPv4パケットに対して生じる．
+ルータが送ったARPリクエストに対するARPリプライが返ってきた
+とき，宛先MACアドレスが解決できたので，コントローラに溜まっている
+パケットを送信する．また同時に，今後その宛先IPアドレス(最初に述べた例でいうhost2のIPアドレス)に対するパケットはコントローラに問い合わせることなく(packet inを起こさず)，
+送信してほしいのでそのためのフローエントリを追加する．
+つまりARPリプライの送信元MACアドレスはパケットの送信先MACアドレスとなり，
+送信先ポートもARPリプライパケットがきたポートをそのまま用いれば良い．
+そしてパケットを送信するためにEGRESSテーブルに移動する．
+よって次のようにしてフローエントリをARP LOOKUPテーブルに追加する．
 ```
     action = [NiciraRegLoad.new(message.source_mac.to_i,:destination_mac_address),
                NiciraRegLoad.new(message.in_port, :reg1)]
@@ -192,15 +203,15 @@ packet in��ARP��ץ饤��IPv4�ѥ��åȤ��Ф��������롥
       instructions:[Apply.new(action),GotoTable.new(EGRESS_TABLE_ID)]
     )
 ```
-�ʾ�μ�����host�֤�ping��������뤳�Ȥ��Ǥ�����
-���������ΤޤޤǤϥ롼�����Ф���ping�������Ǥ��Ƥ��ʤ���
-���ߤΤޤޤǥ롼�����Ф���ping�����ä��Ȥ���ͤ���ȡ�
-Classifier�ơ��֥롤Routing�ơ��֥롤Interface lookup�ơ��֥��Ф�
-ARP lookup�ơ��֥��packet in��ȯ������packet_in_ipv4���ƤӽФ���롥
-�롼�����Ф���ping�ξ�硤�ʲ���packet_in_icmpv4_echo_request���ƤӽФ���롥
-OpenFlow1.0�ǤΥ롼���Ǥ�arp̤���ξ�硤�ѥ��åȤ����������Ƥ��뤬��
-�������ξ�����Ϥ����ѥ��åȤ�ʬ���äƤ���Τǡ����Τޤޥѥ��åȤ������֤��Ф褤�Τ�
-packet_in_icmpv4_echo_request����Ǥ��Τޤ�send_packet_out������ɤ���
+以上の実装でhost間のpingを実装することができた．
+しかしこのままではルータに対するpingが実装できていない．
+現在のままでルータに対してpingを送ったときを考えると，
+Classifierテーブル，Routingテーブル，Interface lookupテーブルを経て
+ARP lookupテーブルでpacket inが発生し，packet_in_ipv4が呼び出される．
+ルータに対するpingの場合，以下のpacket_in_icmpv4_echo_requestが呼び出される．
+OpenFlow1.0版のルータではarp未解決の場合，パケットを後で送信しているが，
+送信元の情報は届いたパケットが分かっているので，そのままパケットを送り返せばよいので
+packet_in_icmpv4_echo_requestの中でそのままsend_packet_outすれば良い．
 
 
 ```
@@ -228,10 +239,10 @@ packet_in_icmpv4_echo_request����Ǥ��Τޤ�send_packet_out������ɤ���
 
 ```
 
-�����������ǵ���Ĥ��ʤ���Фʤ�ʤ��Τ�������ޤǤΥե�������ȥ�Τޤޤ���
-INTERFACE LOOKUP�ơ��֥���ɲä��줿�ʲ��Υե�������ȥ�ˤ�äơ�
-��å�������������MAC���ɥ쥹���롼�����ȤΤ�Τ˽񤭴������Ƥ��ޤäƤ��뤿�ᡤ
-�������Υۥ��Ȥ˥ѥ��åȤ������֤����Ȥ��Ǥ��ʤ���
+しかしここで気をつけなければならないのが，これまでのフローエントリのままだと
+INTERFACE LOOKUPテーブルに追加された以下のフローエントリによって，
+メッセージの送信元MACアドレスがルータ自身のものに書き換えられてしまっているため，
+送信元のホストにパケットを送り返すことができない．
 
 ```
     actions = [NiciraRegLoad.new(each.fetch(:port),:reg1),
@@ -248,26 +259,25 @@ INTERFACE LOOKUP�ơ��֥���ɲä��줿�ʲ��Υե�������ȥ�ˤ�äơ�
      ) 
 ```
 
-������ROUTING�ơ��֥�ǡ��⤷�롼�����Υѥ��åȤξ�硤INTERFACE LOOKUP�ơ��֥��
-��ư������������ȥ������ľ���Ϥ����ɤ���
-���Τ���switch_ready�Ǽ��Υե�������ȥ���ɲä��Ƥ�����
+そこでROUTINGテーブルで，もしルータ宛のパケットの場合，INTERFACE LOOKUPテーブルに
+移動させず，コントローラに直接渡せば良い．
+そのためswitch_readyで次のフローエントリも追加しておく．
 
 ```
     send_flow_mod_add(
        dpid,
        table_id: ROUTING_TABLE_ID,
        idle_timeout: 0,
-       priority: 0,
+       priority: 40024,
        match: Match.new(
               ether_type: ETHER_TYPE_IPv4,
-              ipv4_destination_address: ip_address,
-              dst_protocol_address:ip_address),
+              ipv4_destination_address: ip_address),
        instructions: [Apply.new(SendOutPort.new(:controller))]
      )     
 ```
 
-#�¹Է��
-�ޤ��¹Գ��ϻ��Υե�������ȥ�򼨤���
+#実行結果
+まず実行開始時のフローエントリを示す．
 ```
 $ sudo ovs-ofctl dump-flows br0x1 --protocols=OpenFlow13
 OFPST_FLOW reply (OF1.3) (xid=0x2):
@@ -288,9 +298,9 @@ OFPST_FLOW reply (OF1.3) (xid=0x2):
  cookie=0x0, duration=7.961s, table=5, n_packets=0, n_bytes=0, priority=1 actions=CONTROLLER:65535
  cookie=0x0, duration=7.959s, table=6, n_packets=0, n_bytes=0, priority=0 actions=output:NXM_NX_REG1[]
 ```
-�ץ������������Ǽ�������switch_ready���ɲä��٤��ե�������ȥ꤬�ɲ�
-����Ƥ��뤳�Ȥ���ǧ�Ǥ��롥
-�ޤ�host1����host2��ping�����롥
+プログラムの説明で示した，switch_readyで追加すべきフローエントリが追加
+されていることが確認できる．
+まずhost1からhost2にpingを送る．
 ```
 $ ./bin/trema netns host1
 root@ensyuu2-VirtualBox:~/class/simple_router-team_alpha# ping 192.168.2.2
@@ -304,8 +314,8 @@ PING 192.168.2.2 (192.168.2.2) 56(84) bytes of data.
 64 bytes from 192.168.2.2: icmp_seq=7 ttl=64 time=0.061 ms
 64 bytes from 192.168.2.2: icmp_seq=8 ttl=64 time=0.065 ms
 ```
-������ping���Ϥ��Ƥ��뤳�Ȥ�ʬ���ä���³���Ƶդ�host2����host1�ˤ�
-ping���������롥
+正しくpingが届いていることが分かった．続いて逆にhost2からhost1にも
+pingを送信する．
 ```
 $ ./bin/trema netns host2
 root@ensyuu2-VirtualBox:~/class/simple_router-team_alpha# ping 192.168.1.2
@@ -317,19 +327,19 @@ PING 192.168.1.2 (192.168.1.2) 56(84) bytes of data.
 64 bytes from 192.168.1.2: icmp_seq=5 ttl=64 time=0.051 ms
 64 bytes from 192.168.1.2: icmp_seq=6 ttl=64 time=0.052 ms
 ```
-��������������Ϥ��Ƥ��뤳�Ȥ�ʬ���ä���������ARP LOOKUP�ơ��֥�Υե����ơ��֥��
-ARP̤�����ä��ѥ��åȤ򺣸��Ʊ��������Ϥ���٤Υե�������ȥ꤬�ɲä���Ƥ��뤫
-��ǧ���롥
+こちらも正しく届いていることが分かった．ここでARP LOOKUPテーブルのフローテーブルに
+ARP未解決だったパケットを今後は同じ宛先に届ける為のフローエントリが追加されているか
+確認する．
 ```
 $ sudo ovs-ofctl dump-flows br0x1 --protocols=OpenFlow13
 OFPST_FLOW reply (OF1.3) (xid=0x2):
--(��ά)-
+-(中略)-
 cookie=0x0, duration=179.715s, table=5, n_packets=13, n_bytes=1274, priority=2,ip,nw_dst=192.168.2.2 actions=load:0xfe1860a1cc0a->NXM_OF_ETH_DST[],load:0x2->NXM_NX_REG1[],goto_table:6
  cookie=0x0, duration=179.664s, table=5, n_packets=13, n_bytes=1274, priority=2,ip,nw_dst=192.168.1.2 actions=load:0x67e908b719e->NXM_OF_ETH_DST[],load:0x1->NXM_NX_REG1[],goto_table:6
- -(��ά)-
+ -(後略)-
 ```
-�������ե�������ȥ꤬�ɲä���Ƥ��뤳�Ȥ���ǧ�Ǥ�����
-�Ǹ�˥ۥ��Ȥ���롼���ؤ�ping���Ϥ������ǧ���롥
+正しくフローエントリが追加されていることが確認できた．
+最後にホストからルータへのpingが届くかを確認する．
 ```
 $ ./bin/trema netns host1
 root@ensyuu2-VirtualBox:~/class/simple_router-team_alpha# ping 192.168.1.1
@@ -341,6 +351,6 @@ PING 192.168.1.1 (192.168.1.1) 56(84) bytes of data.
 64 bytes from 192.168.1.1: icmp_seq=5 ttl=128 time=14.5 ms
 ```
 
-�ʾ�Τ褦�˥롼���ؤ�ping���������Ϥ��Ƥ��뤳�Ȥ�ʬ���ä���
-�����η�̤����׵ᤵ�줿���ͤ�OpenFlow1.3�ǥ롼���μ������Ǥ��Ƥ��뤳�Ȥ�
-��ǧ�Ǥ�����
+以上のようにルータへのpingも正しく届いていることが分かった．
+これらの結果から要求された仕様のOpenFlow1.3版ルータの実装ができていることが
+確認できた．
